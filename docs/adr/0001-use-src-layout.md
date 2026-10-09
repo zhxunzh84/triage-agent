@@ -45,4 +45,4 @@ Use the **src layout** with the package name `triage_agent`.
 
 ## Follow-ups
 
-- [ ] Update the design doc and the Sprint 1 brief: `app/` → `src/triage_agent/`.
+- [x] Update the design doc and the Sprint 1 brief: `app/` → `src/triage_agent/`.
