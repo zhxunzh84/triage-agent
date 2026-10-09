@@ -1,7 +1,7 @@
 [project]
 name = "triage-agent"
 version = "0.1.0"
-description = "An LLM-assisted incident triage agent for a simulated banking platform,"
+description = "LLM-assisted incident triage agent with audit logging, human approval and fallback"
 authors = [
     { name = "Zhang Xun", email = "321214239+zhxunzh84@users.noreply.github.com" }
 ]
@@ -24,7 +24,7 @@ target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]   # 基础错误、导入排序、常见 bug、新语法
+select = ["E", "F", "I", "B", "UP"]   # errors, pyflakes, isort, bugbear, pyupgrade
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
