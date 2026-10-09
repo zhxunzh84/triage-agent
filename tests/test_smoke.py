@@ -7,8 +7,8 @@ import pytest
 
 SUBPACKAGES = ["schemas", "rules", "audit", "db", "api"]
 
-def test_python_version() -> None:
 
+def test_python_version() -> None:
     assert sys.version_info >= (3, 12), (
         f"Python 3.12 or higher is required, "
         f"found {sys.version_info.major}.{sys.version_info.minor}"
