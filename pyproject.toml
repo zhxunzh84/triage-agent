@@ -1,0 +1,30 @@
+[project]
+name = "triage-agent"
+version = "0.1.0"
+description = "An LLM-assisted incident triage agent for a simulated banking platform,"
+authors = [
+    { name = "Zhang Xun", email = "321214239+zhxunzh84@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.12.24,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.10",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]   # 基础错误、导入排序、常见 bug、新语法
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
