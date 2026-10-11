@@ -14,3 +14,4 @@ class Alert(BaseModel):
     threshold: float = Field(allow_inf_nan=False)
     observed: float = Field(allow_inf_nan=False)
     log_excerpt: str = Field(max_length=4000)
+    recent_changes: tuple[str, ...] = ()
