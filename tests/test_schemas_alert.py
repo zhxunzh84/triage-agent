@@ -1,6 +1,7 @@
 """Tests for the Alert schema."""
 
 import json
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -18,6 +19,7 @@ def valid_payload() -> dict:
         "threshold": 0.05,
         "observed": 0.31,
         "log_excerpt": "ERROR upstream timeout calling core-ledger",
+        "received_at": "2026-10-11T04:00:00Z",
     }
 
 
@@ -48,6 +50,7 @@ def test_valid_alert_parses() -> None:
     assert alert.threshold == 0.05
     assert alert.observed == 0.31
     assert alert.log_excerpt == "ERROR upstream timeout calling core-ledger"
+    assert alert.received_at == datetime(2026, 10, 11, 4, 0, tzinfo=UTC)
 
 
 # ---------- id / service / metric ----------
@@ -168,3 +171,34 @@ def test_recent_changes_immutable() -> None:
     alert = parse(valid_payload() | {"recent_changes": ["deploy v2.3.1"]})
     with pytest.raises(AttributeError):
         alert.recent_changes.append("x")  # type: ignore[attr-defined]
+
+
+# ---------- received_at ----------
+
+
+@pytest.mark.parametrize(
+    ("bad_received_at", "error_type"),
+    [
+        pytest.param("2026-10-11T04:00:00", "timezone_aware", id="naive-no-tz"),
+        pytest.param("not-a-date", "datetime_parsing", id="garbage"),
+        pytest.param("2026-10-11", "datetime_parsing", id="date-only"),
+        pytest.param(1760155200, "datetime_type", id="unix-timestamp"),
+    ],
+)
+def test_invalid_received_at_rejected(bad_received_at: object, error_type: str) -> None:
+    assert_single_error(
+        valid_payload() | {"received_at": bad_received_at}, "received_at", error_type
+    )
+
+
+def test_received_at_required() -> None:
+    payload = valid_payload()
+    del payload["received_at"]
+    assert_single_error(payload, "received_at", "missing")
+
+
+def test_received_at_same_instant_across_timezones() -> None:
+    utc = parse(valid_payload() | {"received_at": "2026-10-11T04:00:00Z"})
+    sgt = parse(valid_payload() | {"received_at": "2026-10-11T12:00:00+08:00"})
+    assert utc.received_at == sgt.received_at
+    assert sgt.received_at.tzinfo is not None

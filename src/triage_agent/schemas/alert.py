@@ -1,6 +1,6 @@
 """Alert schema: an incoming monitoring alert, validated strictly."""
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 
 class Alert(BaseModel):
@@ -15,3 +15,4 @@ class Alert(BaseModel):
     observed: float = Field(allow_inf_nan=False)
     log_excerpt: str = Field(max_length=4000)
     recent_changes: tuple[str, ...] = ()
+    received_at: AwareDatetime
