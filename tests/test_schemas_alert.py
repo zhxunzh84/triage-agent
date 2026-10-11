@@ -7,6 +7,8 @@ from pydantic import ValidationError
 
 from triage_agent.schemas import Alert
 
+# ---------- helpers ----------
+
 
 def valid_payload() -> dict:
     return {
@@ -23,6 +25,21 @@ def parse(payload: dict) -> Alert:
     return Alert.model_validate_json(json.dumps(payload))
 
 
+def assert_single_error(
+    payload: dict, field: str, error_type: str, *, index: int | None = None
+) -> None:
+    expected_loc = (field,) if index is None else (field, index)
+    with pytest.raises(ValidationError) as exc_info:
+        parse(payload)
+    errors = exc_info.value.errors()
+    assert len(errors) == 1, errors
+    assert errors[0]["loc"] == expected_loc
+    assert errors[0]["type"] == error_type
+
+
+# ---------- happy path ----------
+
+
 def test_valid_alert_parses() -> None:
     alert = parse(valid_payload())
     assert alert.id == "ALT-000001"
@@ -33,22 +50,16 @@ def test_valid_alert_parses() -> None:
     assert alert.log_excerpt == "ERROR upstream timeout calling core-ledger"
 
 
-def assert_single_error(payload: dict, field: str, error_type: str) -> None:
-    with pytest.raises(ValidationError) as exc_info:
-        parse(payload)
-    errors = exc_info.value.errors()
-    assert len(errors) == 1, errors
-    assert errors[0]["loc"] == (field,)
-    assert errors[0]["type"] == error_type
+# ---------- id / service / metric ----------
 
 
 @pytest.mark.parametrize(
     "bad_id",
     [
-        "12345",  # no prefix
-        "XALT-000001",  # extra leading character
-        "ALT-0000012",  # 7 digits
-        "ALT-00001",  # 5 digits
+        pytest.param("12345", id="no-prefix"),
+        pytest.param("XALT-000001", id="extra-leading-char"),
+        pytest.param("ALT-0000012", id="7-digits"),
+        pytest.param("ALT-00001", id="5-digits"),
     ],
 )
 def test_invalid_id_rejected(bad_id: str) -> None:
@@ -58,11 +69,11 @@ def test_invalid_id_rejected(bad_id: str) -> None:
 @pytest.mark.parametrize(
     ("bad_service", "error_type"),
     [
-        ("Payments-API", "string_pattern_mismatch"),  # uppercase letters
-        ("payments api", "string_pattern_mismatch"),  # with space
-        ("-service", "string_pattern_mismatch"),  # start with -
-        ("a" * 65, "string_too_long"),  # too long
-        ("", "string_pattern_mismatch"),  # empty string
+        pytest.param("Payments-API", "string_pattern_mismatch", id="uppercase"),
+        pytest.param("payments api", "string_pattern_mismatch", id="space"),
+        pytest.param("-service", "string_pattern_mismatch", id="leading-dash"),
+        pytest.param("a" * 65, "string_too_long", id="too-long-65"),
+        pytest.param("", "string_pattern_mismatch", id="empty"),
     ],
 )
 def test_invalid_service_rejected(bad_service: str, error_type: str) -> None:
@@ -72,16 +83,15 @@ def test_invalid_service_rejected(bad_service: str, error_type: str) -> None:
 @pytest.mark.parametrize(
     ("bad_metric", "error_type"),
     [
-        ("", "string_too_short"),  # too short
-        ("a" * 129, "string_too_long"),  # too long
+        pytest.param("", "string_too_short", id="empty"),
+        pytest.param("a" * 129, "string_too_long", id="too-long-129"),
     ],
 )
 def test_invalid_metric_rejected(bad_metric: str, error_type: str) -> None:
-    assert_single_error(
-        valid_payload() | {"metric": bad_metric},
-        "metric",
-        error_type,
-    )
+    assert_single_error(valid_payload() | {"metric": bad_metric}, "metric", error_type)
+
+
+# ---------- threshold / observed ----------
 
 
 @pytest.mark.parametrize(
@@ -103,11 +113,14 @@ def test_int_accepted_as_float() -> None:
     assert isinstance(alert.observed, float)
 
 
+# ---------- log_excerpt ----------
+
+
 @pytest.mark.parametrize(
     ("bad_log_excerpt", "error_type"),
     [
-        pytest.param("a" * 4001, "string_too_long", id="too-long-4001"),  # too long
-        pytest.param(12345, "string_type", id="int-not-str"),  # not a string
+        pytest.param("a" * 4001, "string_too_long", id="too-long-4001"),
+        pytest.param(12345, "string_type", id="int-not-str"),
     ],
 )
 def test_invalid_log_excerpt_rejected(bad_log_excerpt: object, error_type: str) -> None:
@@ -119,10 +132,39 @@ def test_invalid_log_excerpt_rejected(bad_log_excerpt: object, error_type: str) 
 @pytest.mark.parametrize(
     "excerpt",
     [
-        pytest.param("a" * 4000, id="max-length-4000"),  # max length
-        pytest.param("", id="empty"),  # empty string
+        pytest.param("a" * 4000, id="max-length-4000"),
+        pytest.param("", id="empty"),
     ],
 )
 def test_log_excerpt_boundary_accepted(excerpt: str) -> None:
     alert = parse(valid_payload() | {"log_excerpt": excerpt})
     assert alert.log_excerpt == excerpt
+
+
+# ---------- recent_changes ----------
+
+
+def test_recent_changes_item_must_be_str() -> None:
+    assert_single_error(
+        valid_payload() | {"recent_changes": ["ok", 123]},
+        "recent_changes",
+        "string_type",
+        index=1,
+    )
+
+
+def test_recent_changes_defaults_to_empty() -> None:
+    alert = parse(valid_payload())
+    assert alert.recent_changes == ()
+
+
+def test_recent_changes_parsed_as_tuple() -> None:
+    alert = parse(valid_payload() | {"recent_changes": ["deploy v2.3.1", "config change"]})
+    assert alert.recent_changes == ("deploy v2.3.1", "config change")
+    assert isinstance(alert.recent_changes, tuple)
+
+
+def test_recent_changes_immutable() -> None:
+    alert = parse(valid_payload() | {"recent_changes": ["deploy v2.3.1"]})
+    with pytest.raises(AttributeError):
+        alert.recent_changes.append("x")  # type: ignore[attr-defined]
