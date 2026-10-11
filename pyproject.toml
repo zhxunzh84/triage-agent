@@ -6,7 +6,9 @@ authors = [
     { name = "Zhang Xun", email = "321214239+zhxunzh84@users.noreply.github.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pydantic>=2.14.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.12.24,<0.13.0"]
