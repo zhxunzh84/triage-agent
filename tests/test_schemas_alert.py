@@ -202,3 +202,17 @@ def test_received_at_same_instant_across_timezones() -> None:
     sgt = parse(valid_payload() | {"received_at": "2026-10-11T12:00:00+08:00"})
     assert utc.received_at == sgt.received_at
     assert sgt.received_at.tzinfo is not None
+
+
+# ---------- model-level guarantees ----------
+
+
+def test_unknown_field_rejected() -> None:
+    assert_single_error(valid_payload() | {"action": "restart"}, "action", "extra_forbidden")
+
+
+def test_alert_is_frozen() -> None:
+    alert = parse(valid_payload())
+    with pytest.raises(ValidationError) as exc_info:
+        alert.service = "other-service"  # type: ignore[misc]
+    assert exc_info.value.errors()[0]["type"] == "frozen_instance"
