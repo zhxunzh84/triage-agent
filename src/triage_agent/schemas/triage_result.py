@@ -18,7 +18,9 @@ RUNBOOK_ALLOWLIST = frozenset(
 class TriageResult(BaseModel):
     """Triage decision proposed by the LLM. Validated before any action is considered."""
 
-    model_config = ConfigDict(frozen=True)  # lax on purpose: LLM output, normalize format
+    model_config = ConfigDict(
+        frozen=True, str_strip_whitespace=True
+    )  # lax on purpose: LLM output, normalize format
 
     severity: Severity
     runbook_id: str
@@ -28,13 +30,6 @@ class TriageResult(BaseModel):
     def normalize_severity(cls, v: object) -> object:
         if isinstance(v, str):
             return v.strip().upper()
-        return v
-
-    @field_validator("runbook_id", mode="before")
-    @classmethod
-    def normalize_runbook_id(cls, v: object) -> object:
-        if isinstance(v, str):
-            return v.strip()
         return v
 
     @field_validator("runbook_id")
