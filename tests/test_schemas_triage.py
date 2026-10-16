@@ -11,7 +11,7 @@ from triage_agent.schemas import TriageResult
 
 
 def valid_payload() -> dict:
-    return {"severity": "P2"}
+    return {"severity": "P2", "runbook_id": "rb-scale-up"}
 
 
 def parse(payload: dict) -> TriageResult:
@@ -39,8 +39,7 @@ def assert_single_error(payload: dict, field: str, error_type: str) -> None:
     ],
 )
 def test_severity_normalized(raw: str, expected: str) -> None:
-    payload = valid_payload()
-    payload["severity"] = raw
+    payload = valid_payload() | {"severity": raw}
     assert parse(payload).severity == expected
 
 
@@ -54,4 +53,44 @@ def test_severity_normalized(raw: str, expected: str) -> None:
     ],
 )
 def test_invalid_severity_rejected(bad_severity: object) -> None:
-    assert_single_error({"severity": bad_severity}, "severity", "literal_error")
+    assert_single_error(valid_payload() | {"severity": bad_severity}, "severity", "literal_error")
+
+
+# ---------- runbook_id ----------
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        pytest.param("rb-rollback-deploy", "rb-rollback-deploy", id="canonical"),
+        pytest.param(" rb-scale-up ", "rb-scale-up", id="padded"),
+    ],
+)
+def test_runbook_id_normalized(raw: str, expected: str) -> None:
+    payload = valid_payload() | {"runbook_id": raw}
+    assert parse(payload).runbook_id == expected
+
+
+@pytest.mark.parametrize(
+    ("bad_runbook", "error_type"),
+    [
+        pytest.param("rb-delete-db", "value_error", id="not-in-allowlist"),
+        pytest.param("RB-SCALE-UP", "value_error", id="wrong-case"),
+        pytest.param(3, "string_type", id="int"),
+    ],
+)
+def test_invalid_runbook_id_rejected(bad_runbook: object, error_type: str) -> None:
+    assert_single_error(
+        {
+            "severity": "P2",
+            "runbook_id": bad_runbook,
+        },
+        "runbook_id",
+        error_type,
+    )
+
+
+def test_runbook_id_required() -> None:
+    payload = valid_payload()
+    del payload["runbook_id"]
+    assert_single_error(payload, "runbook_id", "missing")
