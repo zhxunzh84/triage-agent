@@ -149,3 +149,18 @@ def test_confidence_accepted(raw: object, expected: float) -> None:
 )
 def test_invalid_confidence_rejected(bad_confidence: object, error_type: str) -> None:
     assert_single_error(valid_payload() | {"confidence": bad_confidence}, "confidence", error_type)
+
+
+# ---------- model-level behaviour ----------
+
+
+def test_extra_fields_ignored() -> None:
+    result = parse(valid_payload() | {"action": "restart now"})
+    assert "action" not in result.model_dump()
+
+
+def test_triage_result_is_frozen() -> None:
+    result = parse(valid_payload())
+    with pytest.raises(ValidationError) as exc_info:
+        result.severity = "P1"  # type: ignore[misc]
+    assert exc_info.value.errors()[0]["type"] == "frozen_instance"
