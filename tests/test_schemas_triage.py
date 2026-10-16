@@ -11,7 +11,12 @@ from triage_agent.schemas import TriageResult
 
 
 def valid_payload() -> dict:
-    return {"severity": "P2", "runbook_id": "rb-scale-up"}
+    return {
+        "severity": "P2",
+        "runbook_id": "rb-scale-up",
+        "summary": "A valid summary",
+        "confidence": 0.9,
+    }
 
 
 def parse(payload: dict) -> TriageResult:
@@ -80,17 +85,67 @@ def test_runbook_id_normalized(raw: str, expected: str) -> None:
     ],
 )
 def test_invalid_runbook_id_rejected(bad_runbook: object, error_type: str) -> None:
-    assert_single_error(
-        {
-            "severity": "P2",
-            "runbook_id": bad_runbook,
-        },
-        "runbook_id",
-        error_type,
-    )
+    assert_single_error(valid_payload() | {"runbook_id": bad_runbook}, "runbook_id", error_type)
 
 
 def test_runbook_id_required() -> None:
     payload = valid_payload()
     del payload["runbook_id"]
     assert_single_error(payload, "runbook_id", "missing")
+
+
+# ---------- summary ----------
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        pytest.param("  A valid summary  ", "A valid summary", id="stripped"),
+        pytest.param("A" * 500, "A" * 500, id="max-length-500"),
+    ],
+)
+def test_summary_accepted(raw: str, expected: str) -> None:
+    payload = valid_payload() | {"summary": raw}
+    assert parse(payload).summary == expected
+
+
+@pytest.mark.parametrize(
+    ("bad_summary", "error_type"),
+    [
+        pytest.param("A" * 501, "string_too_long", id="too-long-501"),
+        pytest.param("   ", "string_too_short", id="whitespace-only"),
+        pytest.param("", "string_too_short", id="empty"),
+    ],
+)
+def test_invalid_summary_rejected(bad_summary: str, error_type: str) -> None:
+    assert_single_error(valid_payload() | {"summary": bad_summary}, "summary", error_type)
+
+
+# ---------- confidence ----------
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        pytest.param(0.0, 0.0, id="lower-bound-0"),
+        pytest.param(1.0, 1.0, id="upper-bound-1"),
+        pytest.param("0.5", 0.5, id="numeric-string"),
+    ],
+)
+def test_confidence_accepted(raw: object, expected: float) -> None:
+    payload = valid_payload() | {"confidence": raw}
+    assert parse(payload).confidence == expected
+
+
+@pytest.mark.parametrize(
+    ("bad_confidence", "error_type"),
+    [
+        pytest.param(1.1, "less_than_equal", id="above-1"),
+        pytest.param(-0.1, "greater_than_equal", id="below-0"),
+        pytest.param("word", "float_parsing", id="word"),
+        pytest.param(float("nan"), "finite_number", id="nan"),
+        pytest.param(True, "value_error", id="bool"),
+    ],
+)
+def test_invalid_confidence_rejected(bad_confidence: object, error_type: str) -> None:
+    assert_single_error(valid_payload() | {"confidence": bad_confidence}, "confidence", error_type)
